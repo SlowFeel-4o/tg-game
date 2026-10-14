@@ -1,9 +1,107 @@
 <!DOCTYPE html>
-<html><head>
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Номерная Империя</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-</head>
-<body style="background:#111;color:#fff;font-family:sans-serif;text-align:center;padding-top:40vh">
-<h1>Работает!</h1>
-<script>Telegram.WebApp.ready(); Telegram.WebApp.expand();</script>
-</body></html>
+<style>
+:root{--bg:#1a212b;--card:#252e3b;--line:#364255;--y:#f5c400;--t:#eef2f7;--d:#8e9bb0}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100%;padding-top:env(safe-area-inset-top,0)}
+header{padding:10px 14px 6px;text-align:center}
+#money{font-size:32px;font-weight:800;color:var(--y);letter-spacing:.5px}
+#ips{font-size:13px;color:var(--d)}
+main{flex:1;position:relative;overflow:hidden}
+.tab{position:absolute;inset:0;overflow-y:auto;padding:6px 12px 10px;display:none}
+.tab.on{display:block}
+#plateBox{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0 12px}
+.plate{display:flex;align-items:stretch;background:#fff;color:#111;border:3px solid #111;border-radius:9px;height:54px;font-weight:800;font-family:"Arial Narrow",Arial,sans-serif}
+.plate .n{font-size:30px;padding:0 12px;display:flex;align-items:center;letter-spacing:2px}
+.plate .r{border-left:3px solid #111;padding:2px 9px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;line-height:1}
+.plate .r i{font-style:normal;font-size:9px;margin-top:2px;color:#c00}
+.plate.rare{box-shadow:0 0 0 3px var(--y),0 0 22px var(--y)}
+#plateNote{font-size:12px;color:var(--d);min-height:16px}
+.card{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.card .em{width:62px;min-height:44px;font-size:20px;line-height:1.1;text-align:center;word-break:break-all}
+.card .tx{flex:1;min-width:0}
+.card b{display:block;font-size:15px}
+.card small{color:var(--d);font-size:12px}
+.btn{border:0;border-radius:10px;background:var(--y);color:#1a1a1a;font-weight:800;font-size:14px;padding:12px 10px;min-width:96px}
+.btn.dis{opacity:.35}
+.btn:active{transform:scale(.97)}
+.own{color:#6fe39a;font-weight:700;font-size:13px;min-width:96px;text-align:center}
+#buy{margin:6px 12px 0;padding:16px;font-size:17px;border-radius:14px;width:calc(100% - 24px)}
+nav{display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0));gap:6px}
+nav button{flex:1;border:0;border-radius:12px;background:var(--card);color:var(--d);font-size:14px;font-weight:700;padding:13px 0}
+nav button.on{background:var(--line);color:var(--y)}
+#toast{position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top,0));background:var(--y);color:#111;font-weight:800;text-align:center;padding:12px;border-radius:12px;transform:translateY(-140%);transition:transform .25s;z-index:9}
+#toast.on{transform:none}
+h3{margin:6px 2px 8px;font-size:14px;color:var(--d);font-weight:600}
+</style></head><body>
+<div id="app">
+<header><div id="money">0</div><div id="ips"></div></header>
+<main>
+<section class="tab on" id="t0"><div id="plateBox"><div class="plate" id="plate"></div><div id="plateNote"></div></div><div id="fl"></div></section>
+<section class="tab" id="t1"><h3>Каждый открытый регион даёт бонус ко всему доходу</h3><div id="rl"></div></section>
+<section class="tab" id="t2"><h3>Улучшения биржи</h3><div id="ul"></div></section>
+</main>
+<button class="btn" id="buy"></button>
+<nav><button class="on" data-t="0">🏭 Завод</button><button data-t="1">🗺 Карта</button><button data-t="2">📈 Биржа</button></nav>
+</div>
+<div id="toast"></div>
+<script>
+const tg=window.Telegram&&Telegram.WebApp;
+try{tg.ready();tg.expand();tg.disableVerticalSwipes&&tg.disableVerticalSwipes();tg.setHeaderColor&&tg.setHeaderColor('#1a212b');tg.setBackgroundColor&&tg.setBackgroundColor('#1a212b')}catch(e){}
+const F=[{n:"Гаражный кооператив",e:"🏚️",c:10,i:1},{n:"Районное ГИБДД",e:"🏢",c:150,i:10},{n:"Федеральная база",e:"🏭",c:2000,i:100},{n:"Международный хаб",e:"🏙️",c:30000,i:1000}];
+const R=[{n:"Москва",code:"77",c:0,b:.25},{n:"Дагестан",code:"05",c:5000,b:.5},{n:"Приморье",code:"25",c:60000,b:1},{n:"Северный Кавказ",code:"26",c:600000,b:2}];
+const U=[{n:"Ускоритель генератора",d:"+25% к доходу за уровень",c:500,g:3},{n:"Детектор редкости",d:"+5% к шансу редкого номера за уровень",c:1500,g:3},{n:"Скидка на лицензию",d:"−10% к цене регионов за уровень (до 5)",c:3000,g:3.5,max:5}];
+const s={m:10,f:[0,0,0,0],r:[1,0,0,0],u:[0,0,0],t:Date.now()};
+const $=id=>document.getElementById(id);
+const fmt=n=>{if(n<1000)return n<10?n.toFixed(1).replace(/\.0$/,''):Math.floor(n)+'';const u=['','тыс','млн','млрд','трлн','квдрлн'],k=Math.min(5,Math.floor(Math.log10(n)/3));return (n/Math.pow(1000,k)).toFixed(2).replace(/\.?0+$/,'')+' '+u[k]};
+const fc=i=>Math.ceil(F[i].c*Math.pow(1.15,s.f[i]));
+const uc=i=>Math.ceil(U[i].c*Math.pow(U[i].g,s.u[i]));
+const rc=i=>Math.ceil(R[i].c*(1-.1*s.u[2]));
+const inc=()=>{let b=0;F.forEach((f,i)=>b+=f.i*s.f[i]);let m=1;R.forEach((r,i)=>{if(s.r[i])m+=r.b});return b*m*(1+.25*s.u[0])};
+const hap=t=>{try{tg.HapticFeedback.impactOccurred(t||'light')}catch(e){}};
+const ls=(k,v)=>{try{return v===undefined?localStorage.getItem(k):localStorage.setItem(k,v)}catch(e){return null}};
+function save(){s.t=Date.now();const v=JSON.stringify(s);ls('ni',v);try{tg.CloudStorage.setItem('ni',v)}catch(e){}}
+function load(cb){let done=false;const fin=v=>{if(done)return;done=true;if(v){try{Object.assign(s,JSON.parse(v))}catch(e){}}cb()};try{tg.CloudStorage.getItem('ni',(e,v)=>fin(v||ls('ni')))}catch(e){fin(ls('ni'))}setTimeout(()=>fin(ls('ni')),1500)}
+let tt;function toast(x){const t=$('toast');t.textContent=x;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2600)}
+const L="АВЕКМНОРСТУХ";
+function mkPlate(rare){const r=()=>L[Math.random()*L.length|0];const d=rare?String(1+(Math.random()*9|0)).repeat(3):String(100+(Math.random()*900|0));const cs=R.filter((x,i)=>s.r[i]).map(x=>x.code);return{t:r()+d+r()+r(),c:cs[Math.random()*cs.length|0]}}
+function showPlate(p,rare){const e=$('plate');e.className='plate'+(rare?' rare':'');e.innerHTML='<div class="n">'+p.t+'</div><div class="r">'+p.c+'<i>RUS</i></div>'}
+function build(){
+$('fl').innerHTML=F.map((f,i)=>'<div class="card"><div class="em">'+f.e.repeat(Math.min(Math.max(s.f[i],1),6))+'</div><div class="tx"><b>'+f.n+'</b><small>ур. '+s.f[i]+' · +'+fmt(f.i)+'/сек за уровень</small></div><button class="btn" data-k="f" data-i="'+i+'"></button></div>').join('');
+$('rl').innerHTML=R.map((r,i)=>'<div class="card"><div class="em" style="font-size:22px;font-weight:800">'+r.code+'</div><div class="tx"><b>'+r.n+'</b><small>+'+Math.round(r.b*100)+'% к доходу</small></div>'+(s.r[i]?'<div class="own">✅ Открыт</div>':'<button class="btn" data-k="r" data-i="'+i+'"></button>')+'</div>').join('');
+$('ul').innerHTML=U.map((u,i)=>'<div class="card"><div class="tx"><b>'+u.n+' · ур. '+s.u[i]+'</b><small>'+u.d+'</small></div>'+(u.max&&s.u[i]>=u.max?'<div class="own">Максимум</div>':'<button class="btn" data-k="u" data-i="'+i+'"></button>')+'</div>').join('');
+refresh()}
+function best(){for(let i=F.length-1;i>=0;i--)if(s.m>=fc(i))return i;return -1}
+function refresh(){
+document.querySelectorAll('.btn[data-k]').forEach(b=>{const k=b.dataset.k,i=+b.dataset.i;const c=k==='f'?fc(i):k==='r'?rc(i):uc(i);b.textContent=(k==='f'?'Купить':'Открыть')+' · '+fmt(c);if(k==='u')b.textContent='Улучшить · '+fmt(c);b.classList.toggle('dis',s.m<c)});
+const bi=best(),bb=$('buy');
+if(bi>=0){bb.textContent='⬆ Улучшить: '+F[bi].n+' · '+fmt(fc(bi));bb.classList.remove('dis')}else{bb.textContent='Копим на '+F[0].n+' · '+fmt(fc(0));bb.classList.add('dis')}
+}
+function act(k,i){let c;
+if(k==='f'){c=fc(i);if(s.m<c)return;s.m-=c;s.f[i]++}
+else if(k==='r'){c=rc(i);if(s.m<c||s.r[i])return;s.m-=c;s.r[i]=1;toast('Открыт регион '+R[i].n+' ('+R[i].code+')')}
+else{if(U[i].max&&s.u[i]>=U[i].max)return;c=uc(i);if(s.m<c)return;s.m-=c;s.u[i]++}
+hap('medium');build();save()}
+document.addEventListener('click',e=>{const b=e.target.closest('.btn[data-k]');if(b)act(b.dataset.k,+b.dataset.i)});
+$('buy').onclick=()=>{const i=best();if(i>=0)act('f',i)};
+let cur=0;
+function tab(n){n=Math.max(0,Math.min(2,n));cur=n;document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===n));document.querySelectorAll('nav button').forEach((b,i)=>b.classList.toggle('on',i===n));$('buy').style.display=n===0?'block':'none';hap('light')}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>tab(+b.dataset.t));
+let sx=0,sy=0;
+const mn=document.querySelector('main');
+mn.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+mn.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)tab(cur+(dx<0?1:-1))},{passive:true});
+let last=performance.now();
+function tick(){const n=performance.now(),dt=(n-last)/1000;last=n;s.m+=inc()*dt;$('money').textContent='🪪 '+fmt(s.m);$('ips').textContent='+'+fmt(inc())+' в секунду'}
+setInterval(tick,100);
+setInterval(refresh,400);
+setInterval(()=>{showPlate(mkPlate(false),false);$('plateNote').textContent=''},2000);
+setInterval(()=>{if(Math.random()<.1+.05*s.u[1]){const g=Math.max(inc()*60,5);s.m+=g;showPlate(mkPlate(true),true);$('plateNote').textContent='✨ Редкий номер! +'+fmt(g);hap('heavy')}},15000);
+setInterval(save,5000);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});
+load(()=>{const away=Math.min((Date.now()-s.t)/1000,28800);if(away>60){const g=inc()*away*.5;if(g>0){s.m+=g;toast('Пока тебя не было: +'+fmt(g))}}last=performance.now();showPlate(mkPlate(false),false);tab(0);build();tick()});
+</script></body></html>
